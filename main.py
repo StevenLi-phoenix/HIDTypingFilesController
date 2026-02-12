@@ -103,11 +103,34 @@ class HIDKeyboard:
 
 
 
+def verify_chars(content: str, key_map: dict) -> list:
+    """Check all characters are supported before typing. Returns list of unsupported chars."""
+    unsupported = []
+    for i, char in enumerate(content):
+        if char not in key_map:
+            unsupported.append((i, char, repr(char)))
+    return unsupported
+
+
 def type_string(filename: str):
     if not os.path.exists(filename):
         raise FileNotFoundError(f"File not found: {filename}")
     with open(filename, "r") as file:
         content = file.read()
+    
+    # Verify all characters before typing
+    key_map = build_map()
+    unsupported = verify_chars(content, key_map)
+    if unsupported:
+        print(f"Error: {len(unsupported)} unsupported character(s) found:")
+        for pos, char, char_repr in unsupported[:10]:  # Show first 10
+            print(f"  Position {pos}: {char_repr}")
+        if len(unsupported) > 10:
+            print(f"  ... and {len(unsupported) - 10} more")
+        raise ValueError(f"Cannot type: {len(unsupported)} unsupported character(s)")
+    
+    print(f"Verified {len(content)} characters OK")
+    
     with HIDKeyboard() as keyboard:
         for char in tqdm.tqdm(content, desc="Typing", unit="char"):
             keyboard.send_key(char)
