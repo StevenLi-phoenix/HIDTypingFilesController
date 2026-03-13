@@ -1,3 +1,4 @@
+import logging
 import os
 import time
 from typing import Tuple
@@ -7,7 +8,12 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+logger = logging.getLogger(__name__)
+
 HID_DEVICE = os.getenv("HID_DEVICE", "/dev/hidg0")
+
+DEFAULT_KEY_PRESS_SLEEP = 0.0
+DEFAULT_KEY_RELEASE_SLEEP = 0.0
 
 # HID keyboard report is always 8 bytes: modifier, reserved, then 6 key slots
 EMPTY_REPORT = b"\x00\x00\x00\x00\x00\x00\x00\x00"
@@ -78,25 +84,51 @@ def build_map():
     return key_map
 
 class HIDKeyboard:
-    def __init__(self):
+    def __init__(
+        self,
+        key_press_sleep: float = DEFAULT_KEY_PRESS_SLEEP,
+        key_release_sleep: float = DEFAULT_KEY_RELEASE_SLEEP,
+    ):
         self.device = open(HID_DEVICE, "wb", buffering=0)
         self.key_map = build_map()
+        self.key_press_sleep = key_press_sleep
+        self.key_release_sleep = key_release_sleep
+        logger.info(
+            "HIDKeyboard initialized (press_sleep=%.3fs, release_sleep=%.3fs)",
+            self.key_press_sleep,
+            self.key_release_sleep,
+        )
 
     def __enter__(self):
         return self
-    
-    def send_key(self, key: str):
-        binding: Tuple[int, int] = self.key_map.get(key)
+
+    def _build_report(self, key: str) -> bytes:
+        """Build press + release reports for a single key."""
+        binding: Tuple[int, int] | None = self.key_map.get(key)
         if binding is None:
             raise ValueError(f"Unsupported character: {key}")
-
         modifier, keycode = binding
-        press_report = bytes([modifier, 0x00, keycode, 0x00, 0x00, 0x00, 0x00, 0x00])
-        self.device.write(press_report)
-        time.sleep(0.01)
+        press = bytes([modifier, 0x00, keycode, 0x00, 0x00, 0x00, 0x00, 0x00])
+        return press + EMPTY_REPORT
+
+    def send_key(self, key: str) -> None:
+        report = self._build_report(key)
+        # Write press report
+        self.device.write(report[:8])
+        if self.key_press_sleep > 0:
+            time.sleep(self.key_press_sleep)
         # Release all keys so modifiers don't get "stuck"
-        self.device.write(EMPTY_REPORT)
-        time.sleep(0.02)
+        self.device.write(report[8:])
+        if self.key_release_sleep > 0:
+            time.sleep(self.key_release_sleep)
+
+    def send_keys_batch(self, text: str) -> None:
+        """Write all press+release reports in a single syscall."""
+        buf = bytearray()
+        for char in text:
+            buf += self._build_report(char)
+        self.device.write(buf)
+        logger.info("Batch-wrote %d reports (%d bytes)", len(text) * 2, len(buf))
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.device.close()
@@ -112,33 +144,67 @@ def verify_chars(content: str, key_map: dict) -> list:
     return unsupported
 
 
-def type_string(filename: str):
+def type_string(
+    filename: str,
+    key_press_sleep: float = DEFAULT_KEY_PRESS_SLEEP,
+    key_release_sleep: float = DEFAULT_KEY_RELEASE_SLEEP,
+    batch: bool = False,
+) -> None:
     if not os.path.exists(filename):
         raise FileNotFoundError(f"File not found: {filename}")
     with open(filename, "r") as file:
         content = file.read()
-    
+
     # Verify all characters before typing
     key_map = build_map()
     unsupported = verify_chars(content, key_map)
     if unsupported:
-        print(f"Error: {len(unsupported)} unsupported character(s) found:")
+        logger.error("%d unsupported character(s) found", len(unsupported))
         for pos, char, char_repr in unsupported[:10]:  # Show first 10
-            print(f"  Position {pos}: {char_repr}")
+            logger.error("  Position %d: %s", pos, char_repr)
         if len(unsupported) > 10:
-            print(f"  ... and {len(unsupported) - 10} more")
+            logger.error("  ... and %d more", len(unsupported) - 10)
         raise ValueError(f"Cannot type: {len(unsupported)} unsupported character(s)")
-    
-    print(f"Verified {len(content)} characters OK")
-    
-    with HIDKeyboard() as keyboard:
-        for char in tqdm.tqdm(content, desc="Typing", unit="char"):
-            keyboard.send_key(char)
+
+    logger.info("Verified %d characters OK", len(content))
+
+    with HIDKeyboard(key_press_sleep, key_release_sleep) as keyboard:
+        if batch:
+            logger.info("Batch mode: writing all reports in one syscall")
+            keyboard.send_keys_batch(content)
+        else:
+            for char in tqdm.tqdm(content, desc="Typing", unit="char"):
+                keyboard.send_key(char)
 
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument("filename", type=str)
+
+    parser = argparse.ArgumentParser(description="Type file contents via HID keyboard")
+    parser.add_argument("filename", type=str, help="File to type")
+    parser.add_argument(
+        "--key-press-sleep",
+        type=float,
+        default=DEFAULT_KEY_PRESS_SLEEP,
+        help=f"Sleep after key press in seconds (default: {DEFAULT_KEY_PRESS_SLEEP})",
+    )
+    parser.add_argument(
+        "--key-release-sleep",
+        type=float,
+        default=DEFAULT_KEY_RELEASE_SLEEP,
+        help=f"Sleep after key release in seconds (default: {DEFAULT_KEY_RELEASE_SLEEP})",
+    )
+    parser.add_argument(
+        "--batch",
+        action="store_true",
+        help="Write all reports in a single syscall (fastest, no progress bar)",
+    )
     args = parser.parse_args()
-    type_string(args.filename)
+
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+    type_string(
+        args.filename,
+        args.key_press_sleep,
+        args.key_release_sleep,
+        args.batch,
+    )
