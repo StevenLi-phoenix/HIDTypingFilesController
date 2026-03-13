@@ -12,8 +12,8 @@ logger = logging.getLogger(__name__)
 
 HID_DEVICE = os.getenv("HID_DEVICE", "/dev/hidg0")
 
-DEFAULT_KEY_PRESS_SLEEP = 0.0
-DEFAULT_KEY_RELEASE_SLEEP = 0.0
+DEFAULT_KEY_PRESS_SLEEP = 0.01
+DEFAULT_KEY_RELEASE_SLEEP = 0.02
 
 # HID keyboard report is always 8 bytes: modifier, reserved, then 6 key slots
 EMPTY_REPORT = b"\x00\x00\x00\x00\x00\x00\x00\x00"
