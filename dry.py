@@ -9,7 +9,7 @@ def test_keys(file: str):
 
     try:    
         assert all(key in map.keys() for key in set(content))
-        print("All keys are valid")
+        print(f"All keys are valid @ {file}")
     except AssertionError:
         print(f"Invalid keys found @ {file}")
         print(set(content) - set(map.keys()))
