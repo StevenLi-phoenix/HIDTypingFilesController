@@ -11,8 +11,11 @@ def test_keys(file: str):
         assert all(key in map.keys() for key in set(content))
         print("All keys are valid")
     except AssertionError:
-        print("Invalid keys found")
+        print(f"Invalid keys found @ {file}")
         print(set(content) - set(map.keys()))
+        # utf-8 encode the keys
+        for key in set(content) - set(map.keys()):
+            print(f"{key} -> {key.encode("utf-8")}")
         exit(1)
 
 def parse_args():
