@@ -17,13 +17,10 @@ def test_keys(file: str):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("filename", type=str, nargs="?")
+    parser.add_argument("filenames", type=str, nargs="+")
     return parser.parse_args()
 
 if __name__ == "__main__":
     args = parse_args()
-    if args.filename:
-        test_keys(args.filename)
-    else:
-        print("No filename provided")
-        exit(1)
+    for filename in args.filenames:
+        test_keys(filename)
