@@ -149,6 +149,7 @@ def type_string(
     key_press_sleep: float = DEFAULT_KEY_PRESS_SLEEP,
     key_release_sleep: float = DEFAULT_KEY_RELEASE_SLEEP,
     batch: bool = False,
+    force: bool = False,
 ) -> None:
     if not os.path.exists(filename):
         raise FileNotFoundError(f"File not found: {filename}")
@@ -159,14 +160,20 @@ def type_string(
     key_map = build_map()
     unsupported = verify_chars(content, key_map)
     if unsupported:
-        logger.error("%d unsupported character(s) found", len(unsupported))
+        level = logging.WARNING if force else logging.ERROR
+        logger.log(level, "%d unsupported character(s) found", len(unsupported))
         for pos, char, char_repr in unsupported[:10]:  # Show first 10
-            logger.error("  Position %d: %s", pos, char_repr)
+            logger.log(level, "  Position %d: %s", pos, char_repr)
         if len(unsupported) > 10:
-            logger.error("  ... and %d more", len(unsupported) - 10)
-        raise ValueError(f"Cannot type: {len(unsupported)} unsupported character(s)")
-
-    logger.info("Verified %d characters OK", len(content))
+            logger.log(level, "  ... and %d more", len(unsupported) - 10)
+        if not force:
+            raise ValueError(f"Cannot type: {len(unsupported)} unsupported character(s)")
+        placeholder = "{unsupported}"
+        skip_positions = {pos for pos, _, _ in unsupported}
+        content = "".join(placeholder if i in skip_positions else ch for i, ch in enumerate(content))
+        logger.warning(f"--force: replaced {len(unsupported)} unsupported char(s) with {placeholder!r}, typing {len(content)} chars")
+    else:
+        logger.info("Verified %d characters OK", len(content))
 
     with HIDKeyboard(key_press_sleep, key_release_sleep) as keyboard:
         if batch:
@@ -199,6 +206,11 @@ if __name__ == "__main__":
         action="store_true",
         help="Write all reports in a single syscall (fastest, no progress bar)",
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Skip unsupported characters instead of aborting",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -207,4 +219,5 @@ if __name__ == "__main__":
         args.key_press_sleep,
         args.key_release_sleep,
         args.batch,
+        args.force,
     )
