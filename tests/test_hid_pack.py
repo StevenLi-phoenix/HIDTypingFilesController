@@ -182,11 +182,12 @@ class RoundTrip(Base):
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertEqual(list((self.target / "src").glob("A.java.bak.*")), [])
 
-    def test_source_launcher_command_from_docs(self) -> None:
-        # `java Unpack.java payload outdir` is the documented one-liner (JDK 11+).
+    def test_compiled_command_from_docs(self) -> None:
+        # `cp Unpack.txt Unpack.java && javac Unpack.java && java Unpack payload outdir` is the documented flow,
+        # and the only one that works on a JDK 8 target.
         self.dirty()
         pack(self.repo, self.payload, "--from", "HEAD")
-        r = run(["java", str(UNPACK_SRC), str(self.payload), str(self.target)])
+        r = run(["java", "-cp", str(_classes), "Unpack", str(self.payload), str(self.target)])
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertEqual((self.target / "docs/说明文档.md").read_text(), "# 说明\n内容：你好，世界\n")
 

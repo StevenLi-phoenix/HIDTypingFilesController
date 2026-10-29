@@ -2,7 +2,7 @@
 
 用树莓派（或任何带 USB gadget 的机器）模拟 **USB 键盘**，把文件"打"进一台**不能联网、不能插 U 盘**的机器里。
 
-典型场景：目标机只开放了键盘输入。中文、二进制、大文件都没法直接敲，而 HID 键盘
+典型场景：目标机只开放键盘输入，不能联网、不能插 U 盘。中文、二进制、大文件都没法直接敲，而 HID 键盘
 只能按出可打印 ASCII、`\n`、`\r`、`\t`——一个中文字符就会让整次输入中断。
 
 所以这套工具的思路是：**在 Mac 上把文件打包成纯 ASCII 文本 → 让树莓派把它当键盘敲进去 → 在目标机上用一个
@@ -25,13 +25,13 @@ Mac:  hid_pack.py  ──pack──▶  payload.txt  ──HID 打字──▶  
 | `requirements.txt` | `python-dotenv`、`tqdm` | 树莓派 |
 | `pi-standalone/` | 不依赖 venv / 不依赖网络的精简版（`main_lite.py` + `go.sh` + `check.sh`） | 树莓派 |
 | `hid_pack.py` | 打包器：选中 git 仓库里的一批文件，压成可打字的 ASCII 文本 | Mac |
-| `Unpack.java` / `Unpack.txt` | 解包器：JDK 8 单文件，校验通过才写盘（`.txt` 是同一份源码，方便直接敲） | 目标机 |
+| `Unpack.java` / `Unpack.txt` | 解包器：单文件、Java 8 兼容，校验通过才写盘（`.txt` 是同一份源码，方便直接敲） | 目标机 |
 | `tests/` | 47 个端到端测试 | Mac |
 | `CLAUDE.md` | 给 AI 助手看的简明流程说明 | — |
 
 两个约束贯穿全项目：
 
-- **只用 Python 标准库 + JDK 8 标准库**，不引入新依赖（目标机只有 JDK 8）。
+- **只用 Python 标准库 + Java 标准库**，不引入新依赖，并保持 **Java 8 兼容**（不依赖新语法/新 API）。
 - **仓库只读**：`hid_pack.py` 只从 git 里读文件，从不修改仓库。
 
 ---
@@ -60,14 +60,20 @@ sudo ./type.sh /tmp/myrepo.txt --batch        # --batch: 一次性写所有报�
 
 ### 3. 目标机上解包
 
-```bash
-# JDK 11+：可以直接跑 .txt 源码
-java --source 11 Unpack.txt myrepo.txt . --dry-run     # 只校验，不写盘
-java --source 11 Unpack.txt myrepo.txt .
+`Unpack` 保持 Java 8 兼容，所以默认走"先编译再运行"的方式（老版本 JDK 没有 `--source` 源码启动器）：
 
-# JDK 8（没有源码启动器）
-cp Unpack.txt Unpack.java && javac Unpack.java && java Unpack myrepo.txt .
+```bash
+# 在项目根目录，Unpack.txt 是刚敲完的那个文件
+cp Unpack.txt Unpack.java
+javac Unpack.java
+java Unpack myrepo.txt . --dry-run     # 只校验，不写盘
+java Unpack myrepo.txt .
 ```
+
+`Unpack.class` 和 payload 放在同一个目录即可，不需要额外依赖。
+
+> JDK 11+ 的环境里可以省掉编译，直接 `java --source 11 Unpack.txt ...`。
+
 
 `Unpack` 会**先校验每一行的 CRC32、行号连续性、整段 SHA-256，全部通过后才写文件**；被覆盖的旧文件默认
 备份成 `文件名.bak.yyyyMMddHHmmss`。
@@ -105,7 +111,7 @@ hid_pack.py --repo ../myrepo --from <基线tag> --split-by module -o /tmp/myrepo
 它们共享同一个 `pack-set` id。把这一整个目录敲进目标机上的同一个文件夹，然后让 `Unpack` 指向**目录**：
 
 ```bash
-java --source 11 Unpack.txt /tmp/myrepo-parts .
+java Unpack /tmp/myrepo-parts .          # 需要先 javac Unpack.java 编译一次
 # -> OK 1 (src) ... / FAILED 5 (ui) ... / MISSING 6 (docs) ...
 ```
 
