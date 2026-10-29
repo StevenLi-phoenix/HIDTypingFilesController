@@ -3,20 +3,20 @@
 
 HIDcontroller/main.py can only press printable ASCII, \\n, \\r and \\t; one Chinese character aborts
 the whole run. So instead of typing the files, type ONE text payload (gzip + base64, every line
-numbered and CRC32-checked) and unpack it on the target with Unpack.java (JDK 8 standard library only).
+numbered and CRC32-checked) and unpack it on the target with Unpack.java (Java 8 compatible, standard library only).
 
-    hid_pack.py --repo ../myrepo --from BASE -o myrepo.txt     # BASE -> working tree (+untracked)
-    hid_pack.py --repo ../myrepo --from OLD --to HEAD     # ref -> ref, contents from git objects
+    hid_pack.py --repo ../myrepo --from BASE -o myrepo.txt        # BASE -> working tree (+untracked)
+    hid_pack.py --repo ../myrepo --from OLD --to HEAD             # ref -> ref, contents from git objects
     hid_pack.py --repo ../myrepo src ui/src                       # no --from: every file under the pathspecs
-    hid_pack.py --repo ../myrepo --from BASE --only-untypeable   # just what the plain-patch flow cannot type
-    hid_pack.py --repo ../myrepo --from BASE --init -o out/      # first delivery: 1-sql.txt, 2-code.txt, framework-changes.txt
+    hid_pack.py --repo ../myrepo --from BASE --only-untypeable    # only files a plain ASCII typing run cannot carry
+    hid_pack.py --repo ../myrepo --from BASE --init -o out/       # first delivery: 1-sql.txt, 2-code.txt, framework-changes.txt
     hid_pack.py --repo ../myrepo --from BASE --split-by module -o parts/   # one typed .txt per top-level module
 
 --split-by module (and --init) emit a "pack set": numbered portions sharing a pack-set id, each carrying
 its pack-id/count/label in the header. Type them into one folder and run Unpack on the folder: it applies
 every good portion, then names any portion that is missing or failed, so only that portion is retyped.
 
-The target repo is only read. Payload format and Unpack.java usage: see CLAUDE.md.
+The source repo is only read. Payload format and Unpack usage: see README.md.
 """
 from __future__ import annotations
 
@@ -79,7 +79,7 @@ def is_secret(path: str) -> bool:
 
 
 def is_mock_sql(path: str) -> bool:
-    """Local-mock SQL (e.g. sql/mock/init.sql) DROPs the shared framework tables: never ship it."""
+    """*.sql under a mock/ directory is local-dev setup that may DROP shared tables: never ship it."""
     parts = PurePosixPath(path).parts
     return path.lower().endswith(".sql") and "mock" in parts[:-1]
 
@@ -184,7 +184,7 @@ def read_entries(
             log.warning("skip secret-looking file: %s", path)
             continue
         if actions[path] != "delete" and is_mock_sql(path):
-            log.warning("skip local-mock SQL (it DROPs framework tables): %s", path)
+            log.warning("skip local-mock SQL (may DROP shared tables): %s", path)
             continue
         if actions[path] == "delete":
             entries.append(Entry(DELETE, path))

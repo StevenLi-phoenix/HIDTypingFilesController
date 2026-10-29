@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented here. Format: [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Changed
+- Payload lines carry 256 base64 characters (was 100): fewer lines and checksums to type; the 9999-line limit now covers
+  ~2.5M characters. `Unpack` is unchanged and still reads older payloads.
+- Docs rewritten: Chinese `README.md` (with a flow diagram) and `pi-standalone/README.md`; every example uses the Java 8
+  compile-then-run flow (`javac Unpack.java && java Unpack ...`) and generic repo/tag names.
+- The end-to-end test runs the compiled `Unpack` class instead of the JDK 11+ source launcher.
+
 ## [0.3.0] - 2026-10-09
 
 ### Added
@@ -24,7 +33,7 @@ All notable changes to this project are documented here. Format: [Keep a Changel
   UTF-8 with BOM or UTF-16 LE/BE.
 
 ### Changed
-- `*.sql` under a `mock/` directory is never packed (in every mode): `sql/mock/init.sql` DROPs the shared framework tables.
+- `*.sql` under a `mock/` directory is never packed (in every mode): it is local-dev setup that may `DROP` shared tables.
 - Docs and examples use the `.txt` flow; stats are reported per document with a combined typing-time estimate.
 
 ## [0.1.0] - 2026-10-09

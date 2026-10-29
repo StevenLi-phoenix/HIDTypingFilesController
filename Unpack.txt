@@ -8,8 +8,8 @@ import java.util.zip.*;
 
 /*
  * Unpacks payloads made by hid_pack.py. ASCII only and no tabs: it is itself typed over HID.
- *   JDK 11+: java --source 11 Unpack.txt payload.txt [outdir] [--dry-run] [--no-backup] [--apply-deletes]
- *   JDK 8  : copy Unpack.txt Unpack.java && javac Unpack.java && java Unpack payload.txt [outdir] [flags]
+ *   cp Unpack.txt Unpack.java && javac Unpack.java   (Java 8 compatible)
+ *   java Unpack payload.txt [outdir] [--dry-run] [--no-backup] [--apply-deletes]
  * payload.txt is ONE payload, or a DIRECTORY of a pack set's numbered portions: the good ones are
  * applied, then any missing/failed portion is named on stderr (exit 2) to retype. Overwrites keep a
  * NAME.bak.yyyyMMddHHmmss backup; deletions need --apply-deletes. Exit 0 ok / 1 usage/IO / 2 bad payload.

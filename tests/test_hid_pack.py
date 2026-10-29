@@ -1,7 +1,7 @@
 """End-to-end tests: hid_pack.py (Mac side) -> payload text -> Unpack.java (target side).
 
 Run:  .venv/bin/python -m unittest discover -s tests -v
-Needs git and a JDK (javac --release 8 enforces the Java 8 API level of Unpack.java).
+Needs git and a JDK (javac --release 8 keeps Unpack.java at the Java 8 API level).
 """
 from __future__ import annotations
 
